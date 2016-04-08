@@ -36,21 +36,19 @@ import tkMessageBox as tkm
 
 import os
 
+import re
+
 """""""""""""""""""""
 
 Global parameters
 
 """""""""""""""""""""
 
-
-
 scale = 0.3
 
 q = 1.45
 
 r = 1.959
-
-points = 8192
 
 offset = 1024
 
@@ -130,9 +128,6 @@ def wavelet(f,j):
 
      num=int(math.ceil(sampling_frequency/4000))
 
-     
-
-     ##############################         WHAT IS THIS NUM ????????????????????????????????????
 
      if f>0:
 
@@ -152,31 +147,12 @@ def wavelet(f,j):
 
 #############################################################################  
 
-  
-
-def get_nrows(num):
-
-    if num%5>0:
-
-        return (num/5)+1
-
-    else:
-
-        return num/5
-
-
-
-#############################################################################  
 
         
 
-def get_intensity(wave_num):
+def get_intensity(data, wave_num):
 
-    ############ HADI I DONT UNDERSTAND WHAT YOU ARE DOING HERE
-
-    #######################################################################################################
-
-    tconvolute=np.fft.ifft(intwavelet[wave_num]).real
+    tconvolute=2*np.fft.ifft(np.multiply(data,intwavelet[wave_num])).real
 
     nom=np.divide(1000,2*math.pi*np.multiply(cf,co))
 
@@ -211,7 +187,6 @@ def get_intensity(wave_num):
     
 
 #############################################################################
-
 
 
 def get_gaussian(resolutions):
@@ -267,25 +242,55 @@ def get_gaussian(resolutions):
 #############################################################################
 
   
+def get_filtered_intensity(data,wave_num):
+
+        intensity = get_intensity(data, wave_num)
+
+        fintensity=np.multiply(np.fft.fft(intensity),gaussmatrix[wave_num])
+
+        intensity=np.fft.ifft(fintensity).real
+        
+        return intensity
+
+
+#############################################################################  
+  
 
 def build_wave(entries,plotting_options):
 
     plt.close('all')
 
+    global sampling_frequency
+    
     global number
 
-    number=int(entries['Number of Wavelets'].get())
+    global cf
+
+    global co
 
     global sampling_frequency
 
+    global timestep
+
+    global intwavelet
+
+    global gaussmatrix   
+    
+    global points
+
+    number=int(entries['Number of Wavelets'].get())
+
+    points=int(entries['Number of wavelet sampling points'].get())
+
     sampling_frequency = round(float(entries['Sampling Frequency (Hz)'].get()),1)
+    
+    print sampling_frequency
 
     if number > num_of_waves(entries):
 
         ans=tkm.askyesno('Warning!','The number of wavelets is large. This may result in high memory usage and major wait times. Do you want to continue?')
 
-    global timestep   
-
+    
     timestep= 1000.0/sampling_frequency     #   time step is in milliseconds
 
     freqstep=sampling_frequency/points      #   freqstep is in cycles per sample period (which is the number of 'points' given to the analysis
@@ -306,14 +311,10 @@ def build_wave(entries,plotting_options):
         else:            
 
             return 
-
+  
     
-
-    global cf
-
     cf=get_cf(number)
 
-    
 
     intfrequncies=list()
 
@@ -461,7 +462,7 @@ def build_wave(entries,plotting_options):
 
     damping=np.ones(number)
 
-    global co
+    
 
     co=np.ones(number)
 
@@ -485,8 +486,7 @@ def build_wave(entries,plotting_options):
 		
 		for w1 in range(number):
       
-			global intwavelet
-   
+			   
 			intwavelet=np.zeros((number,points))
    
 			for j in range(number):
@@ -518,7 +518,6 @@ def build_wave(entries,plotting_options):
 
 				co[w1]=co[w1-1]
     
-####################   THIS SHOULD BE SENT OUT TO YOUR WAVELET FUNCTION RATHER THAN CODED IN AGAIN
     
 			ftest=np.fft.fft(sine)
 
@@ -548,11 +547,11 @@ def build_wave(entries,plotting_options):
                 #   This does not start as the begining of the test intensity, to minimize edge effects in the filtering.
 
 
-				segment= intensity[1499:6499]
+				segment= intensity[int(0.2*points):int(0.8*points)]
     
 				if w>0 and w1 < number and max(segment)-min(segment)> 0.1:
         
-						co[w1]=co[w1]-0.005
+						co[w1]=co[w1]-0.005           
 					
 				else:
         
@@ -633,7 +632,7 @@ def build_wave(entries,plotting_options):
 
          'Central Frequencies:\n' + str(cf) + '\n\n' +'Coefficients:\n'+str(co)+ '\n\n' +\
 
-         'Dampings:\n'+str(damping)+'\n\n'+ "Press 'Ok' to continue with the program and wait untill 'Success' page ia displayed." )
+         'Dampings:\n'+str(damping)+'\n\n'+ "Press 'Ok' to continue with the program and wait untill 'Success' page is displayed." )
 
     print "Central ferqunecies are:"
 
@@ -659,11 +658,11 @@ def build_wave(entries,plotting_options):
 
     resolutions=list()
 
-
+    data=1
 
     for wave in range(number):
 
-        intensity = get_intensity(wave)
+        intensity = get_intensity(data,wave)
 
         
 
@@ -691,9 +690,7 @@ def build_wave(entries,plotting_options):
 
 # Gaussian Distribution (no plots)
 
-
-
-    global gaussmatrix
+   
 
     gaussmatrix=get_gaussian(resolutions)
 
@@ -711,15 +708,7 @@ def build_wave(entries,plotting_options):
 
     for wave in range(number):
 
-        intensity = get_intensity(wave)
-
-
-
-        fintensity=np.multiply(np.fft.fft(intensity),gaussmatrix[wave])
-
-        intensity=np.fft.ifft(fintensity).real
-
-        
+        intensity = get_filtered_intensity(data, wave)
 
         limit=max(intensity)/math.e
 
@@ -757,9 +746,9 @@ def build_wave(entries,plotting_options):
         plt.ylabel('Resolution (ms)')
 
         plt.xticks(ind+1, map(str,ind+1))
+        
 
-# Final Gaussian Distribution (Choice of a plot)
-
+# Final Gaussian Filters (Choice of a plot)
 
 
     gaussmatrix=get_gaussian(resolutions)
@@ -781,14 +770,265 @@ def build_wave(entries,plotting_options):
 
     plt.show()   
 
-# Exporting Gaussian Distribution and intwavelet as CSV
-
+# Exporting Gaussian Distribution, intwavelet and coefficients as CSV files
+    try: 
+        os.makedirs('build_wave_output')
+    except OSError:
+        if not os.path.isdir('build_wave_output'):
+            raise
     
 
-    np.savetxt('gauss%d.csv' % sampling_frequency, gaussmatrix, delimiter=',')
+    np.savetxt('build_wave_output\gauss%d.csv' % sampling_frequency, gaussmatrix, delimiter=',')
 
-    np.savetxt('wavelet%d.csv' % sampling_frequency, intwavelet, delimiter=',')
+    np.savetxt('build_wave_output\wavelet%d.csv' % sampling_frequency, intwavelet, delimiter=',')
+    
+    np.savetxt('build_wave_output\co%d.csv' % sampling_frequency, co, delimiter=',')
 
 
 
-    tkm.showinfo('Success', 'Wavelets and Gaussian filters were saved to your local folder.')
+    tkm.showinfo('Success', '''Wavelets and Gaussian filters were saved to "build_wave_output" folder.''')
+    
+#############################################################################
+
+
+def wavelet_EMG(data):
+    
+    intensities = list()
+    
+    for wave in range(number):
+
+        intensity = get_filtered_intensity(data, wave)
+        
+        intensities.append(intensity)
+        
+    return intensities
+
+
+#############################################################################
+
+def long_wavelet_EMG(data):
+    
+    length=len(data)
+    
+    counts=0
+    
+    start=0
+    
+    segs=list()
+    
+    pooled=list()
+    
+    while True:
+        
+        counts+=1
+        
+        if length-start< points:
+            
+            segs.append([start,length-start+1])
+            
+            break
+        
+        else:
+            
+             segs.append([start,points])
+             
+             start = start + points - 2 * offset            
+       
+    for k in range(counts):
+        
+        s=segs[k][0]
+        
+        l=segs[k][1]
+        
+        datasegment = data[s:s+l]   
+   
+        
+        if l < points:
+            
+            if l == 1:
+                
+                datasegment=[datasegment]
+                
+            datasegment=np.lib.pad(datasegment, (0,points-l+1) , 'constant', constant_values=(0,0))
+            
+        intensities = wavelet_EMG(datasegment)
+        
+        starttake = offset
+        
+        endtake = points-offset+1
+        
+        if k == 0:
+            
+            starttake = 0
+            
+        if k==counts:
+            
+            endtake=l+1
+            
+        for ints in intensities:
+            up_ints=ints[starttake:endtake]
+            tmp_pooled=[]
+            for j in range(len(up_ints)):
+                tmp_pooled.append(up_ints[j])
+                
+        pooled.append(tmp_pooled)
+    
+    return np.transpose(pooled)
+
+        
+#############################################################################        
+ 
+def total_intensity(data):
+    
+    ints = long_wavelet_EMG(data)
+    
+    clean_ints = np.transpose(ints[1:-1])
+    
+    return np.sum(clean_ints, axis=1)
+    
+#############################################################################  
+#Input data (p * N)
+#Covariance matrix (p * p)
+#Principal component matrix (p * p)
+#Percentages for each component variance
+#Weighting matrix (p * N)
+    
+#N trials,each trial has p samples
+#put into N rows and p columns
+#termed N*p matrix
+    
+def PCA_EMG(data):
+    
+    data= np.array(data)
+    
+    rows, cols = data.shape
+    
+    covariance_matrix = np.divide(np.dot(data,np.transpose(data)),(cols-1))
+    
+    eigvals , eigenvecs = np.linalg.eig(covariance_matrix)
+    
+    PCs = np.transpose(eigenvecs)
+    
+    
+    variances = []
+    
+    for i in range(rows):
+        
+        variances.append (np.dot(np.dot(eigenvecs[i],covariance_matrix),np.transpose(eigenvecs[i])))
+        
+    
+    percentages = 100*variances/np.sum(variances)
+    
+    weightingmatrix = np.dot(np.transpose(PCs,data))
+    
+    return PCs, percentages, weightingmatrix
+
+#############################################################################
+
+
+
+#############################################################################     
+
+def calculate_intensities(entries,files,cdelim,dec):
+    
+        
+    global sampling_frequency
+    
+    global number
+
+    global cf
+
+    global co
+
+    global sampling_frequency
+
+    global timestep
+
+    global intwavelet
+
+    global gaussmatrix   
+    
+    global points
+    
+      
+    number=int(entries['Number of Wavelets'].get())
+
+    points=int(entries['Number of wavelet sampling points'].get())
+
+    sampling_frequency = round(float(entries['Sampling Frequency (Hz)'].get()),1)
+    
+    timestep= 1000.0/sampling_frequency
+    
+    head=int(entries['Number of header lines in the file'].get())
+ 
+    chan_cols = np.subtract(map(int,re.findall('[0-9]',entries['Column number of channels to be processed (e.g. 3,4,5,7,9)'].get())),1)
+    
+    path = entries['Path'].get()
+    
+    try:
+        
+        gaussmatrix = np.loadtxt('build_wave_output\gauss%d.csv' % sampling_frequency, delimiter=',')
+
+        intwavelet = np.loadtxt('build_wave_output\wavelet%d.csv' % sampling_frequency, delimiter=',')
+    
+        co = np.loadtxt('build_wave_output\co%d.csv' % sampling_frequency, delimiter=',')       
+    
+    except:
+        
+        tkm.showinfo('Warning', 'One or more of the following files are missing\n\n'+os.getcwd()+'\\build_wave_output\gauss%d.csv\n\n' % sampling_frequency +  \
+        
+        os.getcwd()+'\\build_wave_output\wavelet%d.csv\n\n' % sampling_frequency + os.getcwd()+'\\build_wave_output\co%d.csv\n\n' % sampling_frequency +  \
+        
+        "Please make sure you have previously run the 'Build Wavelet' and you sampling frequency entry is filled correcterly.")
+        
+        return
+        
+    cf = get_cf(number)
+    
+    
+    
+       
+    try: 
+        
+        os.makedirs(path +'\intensity_output')
+    
+    except OSError:
+        
+        if not os.path.isdir(path +'\intensity_output'):
+            
+            raise
+    
+    count=1
+    for file in files:
+        
+        fhand= open(file)
+        
+        data=np.genfromtxt(fhand,delimiter=cdelim,skip_header=head, 
+                    
+                   usecols=tuple(chan_cols))
+                   
+        
+        
+        for col in range(len(chan_cols)):
+            
+            if len(data.shape) == 1:
+                
+                ints = long_wavelet_EMG(data[:])
+                
+            else:
+            
+                ints = long_wavelet_EMG(data[:,col])
+#            ints=ints.tolist()   
+            
+            ints.tofile('intensity_output\\' +'file'+ str(count)+ '_column_%s.txt' %  str(int(chan_cols[col])+1),sep=cdelim)
+#            ints=np.array(ints.tolist(), dtype = float)  
+#            ints=np.array(ints,dtype='f')
+#            np.savetxt('intensity_output\\' +'file'+ str(count)+ '_column_%s.txt' %  str(int(chan_cols[col])+1) , ints,delimiter=cdelim )
+
+        count+=1
+            
+            
+            
+            
+            
+                   
