@@ -1,8 +1,11 @@
 from Tkinter import *
 from muscle_wave import *
 from tkFileDialog import askdirectory
+import tkMessageBox as tkm
+import glob
 
-
+global file_path
+file_path = ''
 # a base tab class
 class Tab(Frame):
 	def __init__(self, master, name):
@@ -125,6 +128,7 @@ def TAB1_wavelet_number(entries,v):
         pass
     
 def browse_path(root):
+     entries = {}
      row = Frame(root)
      lab = Label(row, width=width/30, text="Please choose the directory containing EMG data files:\t\t\t", anchor='w')
      lab.pack(side=LEFT)
@@ -136,34 +140,65 @@ def browse_path(root):
      b.pack(side=LEFT,padx=5)
      ent.pack(side=RIGHT,expand=YES, fill=X )
      row.pack(side=TOP, fill=X, padx=5, pady=2)
-     return ent
+     entries['Path'] = ent
+     return entries
     
             
 if __name__ == '__main__':
     
     def open_path(entry):
-        global file_path
+        global file_path 
         file_path = askdirectory()
         entry.delete(0, END)
         entry.insert(0, file_path)        
-        
-        
+     
+    def delim_pick(dl):
+        switcher = {
+        1: ',',
+        2: '\t',
+        3: ';',
+        4: ' ',
+        }
+        return switcher.get(dl) 
+     
+    def write(x): print x    
         
     def get_filenames(path):
-        filenames = glob.glob(file_path+"/*.*")
+        filenames = glob.glob(path+"/*.*")
         return filenames
-        
-        
-    def write(x): print x
-        
+       
     def close_window (): root.destroy()
         
     def update_num(a,b,c):
-       TAB1_wavelet_number(ents1,v)
+       TAB1_wavelet_number(ents11,v)
        
     def run_build_wave(entries,chk):
        root.title("Build Wavelet Program (Running)")
        build_wave(entries,list(chk.state()))
+       root.title("Build Wavelet Program")
+       
+    def run_calculate_intensities(e1,e2,e3,dl, dc):
+       root.title("Build Wavelet Program (Running)")
+       
+       cdl = delim_pick(dl.get())
+       dpc = dc.get()
+       entries=dict(e1.items()+e2.items()+e3.items()) 
+       if file_path == '':
+           tkm.showinfo('Warning', 'Please select the folder of your EMG data files and try again.')
+           return
+       try:
+           
+           files=get_filenames(file_path)
+           if files==[]:
+               tkm.showinfo('Warning','No files in the selected folder. Please select a new folder and try again.')
+               return
+       except:
+           tkm.showinfo('Warning', 'The folder you entered does not exist. Please try again.')
+           return
+           
+       calculate_intensities(entries,files,cdl,dpc)
+       
+       
        root.title("Build Wavelet Program")
 
     root=Tk()
@@ -181,10 +216,11 @@ if __name__ == '__main__':
     
     tech_choices=[('Surface EMG electrodes',1), ('Finewire/Needle EMG electrodes',2)]
     decimal_choices=[('Period (.)',1),('Comma (,)',2)]
+    delim_choices=[('Comma (,)',1) , ('Tab',2), ('Semicolon (;)',3) , ('Space',4) ]
     
-    file_details_fields =[('Number of header lines in the file',''),('Column number of channels to be processed (e.g. 3,4,5,7,9)','')] 
-    simple_fields = [('Sampling Frequency (Hz)','5000'), ('Number of Wavelets','13'), ('Deviation from maximum (%)','1.0'), ('Max iterations for setting coefficients','5')]
-    advanced_fields = [('Sampling Frequency (Hz)','5000'), ('Number of Wavelets','24'), ('Deviation from maximum (%)','1.0'), ('Max iterations for setting coefficients','5')]
+    file_details_fields =[('Number of header lines in the file','0'),('Column number of channels to be processed (e.g. 3,4,5,7,9)','')] 
+    simple_fields = [('Sampling Frequency (Hz)','5000'), ('Number of Wavelets','13'), ('Deviation from maximum (%)','1.0'), ('Max iterations for setting coefficients','5'),('Number of wavelet sampling points','8192')]
+    advanced_fields = [('Sampling Frequency (Hz)','5000'), ('Number of Wavelets','24'), ('Deviation from maximum (%)','1.0'), ('Max iterations for setting coefficients','5'),('Number of wavelet sampling points','8192')]
     bar = TabBar(root, "Quick Setup")
 
     """""""""    TAB 1: Simple Setup    """""""""
@@ -215,7 +251,7 @@ if __name__ == '__main__':
     ftext = StringVar()
     ntext.set('13')
     ftext.set('5000')
-    ents1 = makeform_TAB1_init(tab1, simple_fields)
+    ents11 = makeform_TAB1_init(tab1, simple_fields)
     
     
     v = IntVar()
@@ -226,12 +262,12 @@ if __name__ == '__main__':
                 text=txt,
                 padx = 20, 
                 variable=v, 
-                command=(lambda e=ents1,v=v:TAB1_wavelet_number(e,v)),
+                command=(lambda e=ents11,v=v:TAB1_wavelet_number(e,v)),
                 value=val).pack(anchor=W)
                 
     
     
-    ents1 = makeform_TAB1(tab1, simple_fields)
+    ents11 = makeform_TAB1(tab1, simple_fields)
         
     row=Frame(tab1)
     row.pack(side=TOP, fill=X, padx=5, pady=2)
@@ -245,7 +281,7 @@ if __name__ == '__main__':
     chk1.pack(side=LEFT,  fill=X,expand=YES)
     
     
-    tab1.bind('<Return>', (lambda event, e=ents1: fetch(e)))
+    tab1.bind('<Return>', (lambda event, e=ents11: fetch(e)))
     
     ftext.trace('w',update_num)
     ntext.trace('w',update_num)
@@ -254,7 +290,7 @@ if __name__ == '__main__':
     row.pack(side=TOP, fill=X, padx=5, pady=2)
     
     b11 = Button(tab1, text='Build Wavelets',
-    command=(lambda e=ents1,po=chk1 :run_build_wave(e,po)))
+    command=(lambda e=ents11,po=chk1 :run_build_wave(e,po)))
     b11.pack(padx=5, pady=5)
     
     
@@ -273,16 +309,25 @@ if __name__ == '__main__':
    
 #    file_path=str()
     path_entry_1=browse_path(tab1)
-    tab1.bind('<Return>', (lambda event, p= path_entry_1: fetch(p)))
+    tab1.bind('<Return>', (lambda event, p=path_entry_1: fetch(p)))
     
     row=Frame(tab1)
     row.pack(side=TOP, fill=X, padx=5, pady=2)
     
-    Label(row,text='File type:\t\t\t',justify=LEFT, anchor='w' \
+    Label(row,text='Column delimiter:\t',justify=LEFT, anchor='w' \
     ).pack(anchor=W, side=LEFT)
     
-    chk1_FT=Checkbar(row, ['CSV','TSV',"Don't Know"])
-    chk1_FT.pack(side=LEFT,  fill=X, expand=YES)
+    delim=IntVar()
+    delim.set(1)  
+    
+    for txt, val in delim_choices:
+        Radiobutton(row, 
+                text=txt,
+                padx = 5, 
+                variable=delim, 
+                command=(),
+                value=val).pack(side=LEFT)
+   
     
     row=Frame(tab1)
     row.pack(side=TOP, fill=X, padx=5, pady=2)        
@@ -291,7 +336,8 @@ if __name__ == '__main__':
     ).pack(anchor=W, side=LEFT)
     
     dec=IntVar()
-    dec.set(1)    
+    dec.set(1)
+    
     for txt, val in decimal_choices:
         Radiobutton(row, 
                 text=txt,
@@ -303,7 +349,7 @@ if __name__ == '__main__':
     ents12=makeform(tab1, file_details_fields)
     tab1.bind('<Return>', (lambda event, e2=ents12: fetch(e2)))
     
-    b12 = Button(tab1, text='Calculate intensities', command=close_window)
+    b12 = Button(tab1, text='Calculate intensities', command=(lambda e1=ents11, e2=ents12, e3 = path_entry_1 , dl=delim ,dc=dec: run_calculate_intensities(e1,e2,e3,dl,dc)))
     b12.pack(side=LEFT, padx=10, pady=10)
     
     b13 = Button(tab1, text='Close', command=close_window)
@@ -365,16 +411,21 @@ if __name__ == '__main__':
     bline.pack( side=TOP, fill=X, padx=0, pady=3)
     
     path_entry_2=browse_path(tab2)
-    tab2.bind('<Return>', (lambda event, p= path_entry_2: fetch(e)))
+    tab2.bind('<Return>', (lambda event, p=path_entry_2: fetch(p)))
     
     row=Frame(tab2)
     row.pack(side=TOP, fill=X, padx=5, pady=2)
     
-    Label(row,text='File type:\t\t\t',justify=LEFT, anchor='w' \
+    Label(row,text='Column delimiter:\t',justify=LEFT, anchor='w' \
     ).pack(anchor=W, side=LEFT)
     
-    chk2_FT=Checkbar(row, ['CSV','TSV',"Don't Know"])
-    chk2_FT.pack(side=LEFT,  fill=X, expand=YES)
+    for txt, val in delim_choices:
+        Radiobutton(row, 
+                text=txt,
+                padx = 5, 
+                variable=delim, 
+                command=(),
+                value=val).pack(side=LEFT)
     
     row=Frame(tab2)
     row.pack(side=TOP, fill=X, padx=5, pady=2)        
